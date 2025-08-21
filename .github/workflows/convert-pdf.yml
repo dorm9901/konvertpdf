@@ -1,35 +1,31 @@
 name: Convert PDF to Word
 
 on:
+  workflow_dispatch:  # Запуск вручную из вкладки Actions
   issues:
-    types: [opened]
+    types: [opened, labeled]
 
 jobs:
   convert:
+    if: contains(github.event.issue.labels.*.name, 'convert')
     runs-on: ubuntu-latest
-    if: contains(github.event.issue.labels.*.name, 'conversion') # Работаем только с помеченными issue
+    permissions:
+      issues: write  # Даем разрешение на редактирование Issues
 
     steps:
-    - name: Checkout repository code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.9'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: pip install requests pypandoc
+      - name: Install dependencies
+        run: pip install requests pygithub
 
-    - name: Download PDF and Convert
-      env:
-        # ЗАМЕНИТЕ ЭТО НА ВАШ РЕАЛЬНЫЙ СЕКРЕТНЫЙ КЛЮЧ!
-        CONVERTAPI_SECRET: ${{ secrets.CONVERTAPI_SECRET }}
-      run: python .github/scripts/convert.py "${{ github.event.issue.number }}"
-
-    - name: Upload log on failure
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: conversion-log
-        path: conversion.log
+      - name: Run conversion script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONVERTAPI_SECRET: ${{ secrets.CONVERTAPI_SECRET }}
+        run: python .github/scripts/convert.py "${{ github.event.issue.number }}"
