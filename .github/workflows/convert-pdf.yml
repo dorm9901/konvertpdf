@@ -1,0 +1,35 @@
+name: Convert PDF to Word
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.labels.*.name, 'conversion') # Работаем только с помеченными issue
+
+    steps:
+    - name: Checkout repository code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: pip install requests pypandoc
+
+    - name: Download PDF and Convert
+      env:
+        # ЗАМЕНИТЕ ЭТО НА ВАШ РЕАЛЬНЫЙ СЕКРЕТНЫЙ КЛЮЧ!
+        CONVERTAPI_SECRET: ${{ secrets.CONVERTAPI_SECRET }}
+      run: python .github/scripts/convert.py "${{ github.event.issue.number }}"
+
+    - name: Upload log on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: conversion-log
+        path: conversion.log
