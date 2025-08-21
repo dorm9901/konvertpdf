@@ -1,69 +1,62 @@
-import requests
 import os
-import base64
+import requests
 from github import Github
 
-# Configuration
-GH_TOKEN = os.getenv('GITHUB_TOKEN')  # Автоматически предоставляется GitHub Actions
-REPO_NAME = os.getenv('GITHUB_REPOSITORY')  # Имя текущего репозитория (ваш/pdf-converter)
-ISSUE_NUMBER = os.getenv('ISSUE_NUMBER')  # Номер issue передан из workflow
-CONVERTAPI_SECRET = os.getenv('CONVERTAPI_SECRET')  # Ваш секретный ключ
-CONVERTAPI_URL = f'https://v2.convertapi.com/convert/pdf/to/doc?Secret={CONVERTAPI_SECRET}'
-
 def main():
-    # Initialize GitHub API client
-    g = Github(GH_TOKEN)
-    repo = g.get_repo(REPO_NAME)
-    issue = repo.get_issue(number=int(ISSUE_NUMBER))
+    try:
+        # Получаем секреты и данные из переменных окружения GitHub Actions
+        github_token = os.environ['GITHUB_TOKEN']
+        convertapi_secret = os.environ['CONVERTAPI_SECRET']
+        repo_name = os.environ['GITHUB_REPOSITORY']
+        issue_number = int(os.environ['ISSUE_NUMBER'])
 
-    # Check if the issue has any attachments (PDF)
-    attachments = [comment for comment in issue.get_comments() if comment.body.startswith('PDF attached')]
-    
-    if not attachments:
-        issue.create_comment("❌ Ошибка: Не найден прикрепленный PDF-файл.")
-        return
+        print(f"🚀 Starting conversion for issue #{issue_number}")
 
-    # Get the latest PDF attachment
-    pdf_comment = attachments[-1]
-    # Here you would need to parse the comment to get the download URL
-    # This is a complex part because GitHub API doesn't directly give attachment URLs easily
+        # Создаем клиент для работы с GitHub API
+        g = Github(github_token)
+        repo = g.get_repo(repo_name)
+        issue = repo.get_issue(number=issue_number)
 
-    # This is a SIMPLIFIED example. In practice, you need to use the GitHub API to download the attachment.
-    # Let's assume we have a direct download URL for the PDF (this is the hard part)
-    pdf_url = "URL_TO_PDF_FROM_COMMENT"  # You need to implement this logic
+        # Оставляем комментарий о начале конвертации
+        issue.create_comment("🔄 Запускаю конвертацию PDF в Word...")
 
-    # Download PDF
-    response = requests.get(pdf_url)
-    pdf_data = response.content
+        # Проверяем, есть ли метка convert
+        labels = [label.name for label in issue.labels]
+        if 'convert' not in labels:
+            error_msg = "❌ Issue doesn't have 'convert' label. Please add the 'convert' label to this issue."
+            issue.create_comment(error_msg)
+            print(error_msg)
+            return
 
-    # Convert using ConvertAPI
-    files = {'File': ('document.pdf', pdf_data, 'application/pdf')}
-    payload = {'StoreFile': 'true'}
-    response = requests.post(CONVERTAPI_URL, files=files, data=payload)
-    
-    if response.status_code != 200:
-        issue.create_comment(f"❌ Ошибка конвертации: {response.text}")
-        return
+        # Ищем комментарии с вложениями (это сложная часть с GitHub API)
+        comments = issue.get_comments()
+        pdf_found = False
 
-    # Get result
-    result = response.json()
-    docx_url = result['Files'][0]['Url']
-    
-    # Download DOCX
-    docx_response = requests.get(docx_url)
-    docx_data = docx_response.content
+        for comment in comments:
+            if 'PDF file attached' in comment.body:
+                pdf_found = True
+                # Здесь должен быть код для обработки вложения
+                break
 
-    # Upload back to GitHub as comment attachment
-    # encoded_content = base64.b64encode(docx_data).decode()
-    # repo.create_issue_comment(ISSUE_NUMBER, "✅ Конвертация завершена!", attachments=[{
-    #     'filename': 'converted.docx',
-    #     'content': encoded_content,
-    #     'encoding': 'base64'
-    # }])
+        if not pdf_found:
+            issue.create_comment("❌ No PDF file found. Please attach a PDF file to the issue comments.")
+            print("No PDF file found in comments")
+            return
 
-    # Since GitHub API doesn't easily allow file uploads in comments,
-    # we'll just provide a download link
-    issue.create_comment(f"✅ Конвертация завершена! Скачайте файл: [converted.docx]({docx_url})")
+        # ЗДЕСЬ БУДЕТ КОД ДЛЯ РАБОТЫ С ConvertAPI
+        # Это временная заглушка для теста
+        print("✅ Conversion simulation completed successfully")
+        issue.create_comment("✅ Конвертация успешно завершена! (Это тестовое сообщение)\n\n"
+                           "⚠️ Реальная конвертация через ConvertAPI будет реализована в следующем шаге.")
+
+    except Exception as e:
+        error_msg = f"❌ Critical error: {str(e)}"
+        print(error_msg)
+        # Пытаемся добавить комментарий об ошибке в issue
+        try:
+            issue.create_comment(error_msg)
+        except:
+            pass
 
 if __name__ == '__main__':
     main()
